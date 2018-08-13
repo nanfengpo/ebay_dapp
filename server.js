@@ -1,9 +1,14 @@
+/**
+ * 本模块只用于mongoDB数据库的读写。作用是提高查询和过滤的效率。
+ * 【注意】即使是MongoDB，也不会存储产品的图片本身，而是存储图片在ipfs的hash值
+ */
+
 var ecommerce_store_artifacts = require('./build/contracts/EcommerceStore.json')
 var contract = require('truffle-contract')
 var Web3 = require('web3')
 var provider = new Web3.providers.HttpProvider("http://localhost:8545");
 var EcommerceStore = contract(ecommerce_store_artifacts);
-EcommerceStore.setProvider(provider);
+EcommerceStore.setProvider(provider); // 设置本合约的创建者
 /*
  - start gananche-cli
  - truffle migrate
@@ -17,9 +22,9 @@ EcommerceStore.setProvider(provider);
 //Mongoose setup to interact with the mongodb database
 var mongoose = require('mongoose');
 mongoose.Promise = global.Promise;
-var ProductModel = require('./product');
+var ProductModel = require('./product');  // 获取product.js中的数据库模型
 
-const options = {
+const options = { // 连接mongoDB的选项
   useMongoClient: true,
   reconnectTries: Number.MAX_VALUE, // Never stop trying to reconnect
   reconnectInterval: 500, // Reconnect every 500ms
@@ -36,8 +41,8 @@ var express = require('express');
 var app = express();
 
 app.use(function(req, res, next) {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+  res.header("Access-Control-Allow-Origin", "*"); // 允许来自任何ip的请求
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept"); // 允许的header字段
   next();
 });
 
@@ -45,7 +50,7 @@ app.listen(3000, function() {
   console.log('Ebay Ethereum server listening on port 3000!');
 });
 
-// https://www.zastrin.com/courses/3/lessons/8-6
+// 监听新产品事件的函数
 function setupProductEventListner() {
   let productEvent;
   EcommerceStore.deployed().then(function(i) {
@@ -61,7 +66,8 @@ function setupProductEventListner() {
   })
 }
 
-setupProductEventListner();
+// 执行监听新产品事件的函数
+setupProductEventListner(); 
 
 function saveProduct(product) {
   ProductModel.findOne({ 'blockchainId': product._productId.toLocaleString() }, function (err, dbProduct) {

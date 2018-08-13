@@ -13,10 +13,12 @@ const ethUtil = require('ethereumjs-util')
 
 const ipfs = ipfsAPI({ host: 'localhost', port: '5001', protocol: 'http' })
 
+// 离线模块服务的地址，也就是server.js的地址。
+// 这个只用于查询，也就是读数据库。至于写数据库，server.js已经在后台监听区块链了，当区块链上有相应事件时，就会自动调用写数据库
 const offchainServer = "http://localhost:3000";
 const categories = ["Art","Books","Cameras","Cell Phones & Accessories","Clothing","Computers & Tablets","Gift Cards & Coupons","Musical Instruments & Gear","Pet Supplies","Pottery & Glass","Sporting Goods","Tickets","Toys & Hobbies","Video Games"];
 
-
+// 这个window应该是webpack里默认的全局变量
 window.App = {
   start: function () {
     var self = this
@@ -25,33 +27,41 @@ window.App = {
 
     var reader;
 
+    // 更改图片。用于list-item.html中相应的<input>标签的更改操作。
+    // 读取图片信息到reader中，作为下面的saveProduct函数的第一个参数
     $("#product-image").change(function(event) {
       const file = event.target.files[0]
       reader = new window.FileReader()
       reader.readAsArrayBuffer(file)
     });
 
+    // 增加一个新的产品。用于list-item.html中相应的<form>标签的提交操作。
     $("#add-item-to-store").submit(function(event) {
-      const req = $("#add-item-to-store").serialize();
+      const req = $("#add-item-to-store").serialize(); // 获取请求并序列化
       let params = JSON.parse('{"' + req.replace(/"/g, '\\"').replace(/&/g, '","').replace(/=/g,'":"') + '"}');
       let decodedParams = {}
       Object.keys(params).forEach(function(v) {
         decodedParams[v] = decodeURIComponent(decodeURI(params[v]));
       });
       saveProduct(reader, decodedParams);
-      event.preventDefault();
+      event.preventDefault(); // preventDefault() 方法阻止元素发生默认的行为（例如，当点击提交按钮时阻止对表单的提交）。
     });
 
     // This if block should be with in the window.App = {} function
+    // 查看产品详情。用于product.html中的相应的<div>标签。
+    // 【注意】这里的URLSearchParams能解析出url链接（product.html?id=123）中?后面的参数，并取出参数id的值。url的结构参见buildProduct()函数的最后一行
     if($("#product-details").length > 0) {
       //This is product details page
+      // 其中的window.location应该就是url（product.html?id=123），.search表示?后面的参数
       let productId = new URLSearchParams(window.location.search).get('id');
       renderProductDetails(productId);
     }
 
+    // 在产品页面对相应的产品出价。用于product.html中的相应的<form>标签。
     $("#bidding").submit(function(event) {
-      $("#msg").hide();
-      let amount = $("#bid-amount").val();
+      $("#msg").hide(); // 暂时隐藏提示信息
+      // 获取相应input标签的值。【注意】此时已经提交，所以不会改变，不用.change而用.val
+      let amount = $("#bid-amount").val(); 
       let sendAmount = $("#bid-send-amount").val();
       let secretText = $("#secret-text").val();
       let sealedBid = '0x' + ethUtil.sha3(web3.toWei(amount, 'ether') + secretText).toString('hex');
@@ -77,7 +87,8 @@ window.App = {
     2. Add a new section on the product details page listing all the bids that have been revealed so far and the bid amounts.
     3. Also display the total number of bids received and the total number of bids revealed.
      */
-    $("#revealing").submit(function(event) {
+    // 在产品页面对相应的产品公告。用于product.html中的相应的<form>标签。
+     $("#revealing").submit(function(event) {
       $("#msg").hide();
       let amount = $("#actual-amount").val();
       let secretText = $("#reveal-secret-text").val();
@@ -94,6 +105,7 @@ window.App = {
       event.preventDefault();
     });
 
+    // 在产品页面对相应的产品结束拍卖。用于product.html中的相应的<form>标签。
     $("#finalize-auction").submit(function(event) {
       $("#msg").hide();
       let productId = $("#product-id").val();
@@ -114,7 +126,8 @@ window.App = {
       event.preventDefault();
     });
 
-    // https://www.zastrin.com/courses/3/lessons/7-4
+    // 释放锁定的资金给卖家。用于product.html中的相应的<a>标签。
+    // 【注意】这里的URLSearchParams能解析出url链接（product.html?id=123）中?后面的参数，并取出参数id的值。url的结构参见buildProduct()函数的最后一行
     $("#release-funds").click(function() {
       let productId = new URLSearchParams(window.location.search).get('id');
       EcommerceStore.deployed().then(function(f) {
@@ -129,6 +142,8 @@ window.App = {
       });
     });
 
+    // 赎回剩余的资金给竞拍者。用于product.html中的相应的<a>标签。
+    // 【注意】这里的URLSearchParams能解析出url链接（product.html?id=123）中?后面的参数，并取出参数id的值。url的结构参见buildProduct()函数的最后一行
     $("#refund-funds").click(function() {
       let productId = new URLSearchParams(window.location.search).get('id');
       EcommerceStore.deployed().then(function(f) {
@@ -147,6 +162,7 @@ window.App = {
 
 }
 
+// 启动webpack
 window.addEventListener('load', function () {
   // Checking if Web3 has been injected by the browser (Mist/MetaMask)
   if (typeof web3 !== 'undefined') {
@@ -159,7 +175,7 @@ window.addEventListener('load', function () {
     window.web3 = new Web3(new Web3.providers.HttpProvider('http://localhost:8545'))
   }
 
-  App.start()
+  App.start() // 执行上面的window.App的start函数
 })
 
 
@@ -211,7 +227,7 @@ function renderProducts(div, filters) {
         let node = buildProduct(value);
         row.append(node);
       })
-      $("#" + div).append(row);
+      $("#" + div).append(row); // 由于使用了ajax，所以可以实时异步更新，所以可以不断append
     }
   })
 }
@@ -233,18 +249,19 @@ function renderProducts(div, filters) {
 }
  */
 
+ // 【注意】此函数是用于在首页index.html渲染各个产品的简要信息，详细的资料需要到product.html中查看
 function buildProduct(product) {
   console.log(product)
   let node = $("<div/>");
   node.addClass("col-sm-3 text-center col-margin-bottom-1");
   //node.append("<img src='https://ipfs.io/ipfs/" + product[3] + "' width='150px' />");
-  node.append("<img src='http://localhost:8080/ipfs/" + product.ipfsImageHash + "' width='150px' />");
+  node.append("<img src='http://localhost:8080/ipfs/" + product.ipfsImageHash + "' width='150px' />"); // 如果本机运行ipfs的话，就可以使用http://localhost:8080/ipfs/ 来代替https://ipfs.io/ipfs/
   node.append("<div>" + product.name+ "</div>");
   node.append("<div>" + product.category+ "</div>");
   node.append("<div>" + product.auctionStartTime+ "</div>");
   node.append("<div>" + product.auctionEndTime+ "</div>");
   node.append("<div>Ether " + product.price + "</div>");
-  node.append("<a href=product.html?id=" + product.blockchainId + ">Details</a>");
+  node.append("<a href=product.html?id=" + product.blockchainId + ">Details</a>"); // 想要看更详细的资料，可以点击这个链接
   return node;
 }
 
@@ -264,7 +281,7 @@ function buildProductOld(product) {
 
 function saveProduct(reader, decodedParams) {
   let imageId, descId;
-  saveImageOnIpfs(reader).then(function(id) {
+  saveImageOnIpfs(reader).then(function(id) { // reader里只有图片
     imageId = id;
     saveTextBlobOnIpfs(decodedParams["product-description"]).then(function(id) {
       descId = id;

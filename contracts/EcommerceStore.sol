@@ -3,11 +3,11 @@ pragma solidity ^0.4.13;
 import "contracts/Escrow.sol";
 contract EcommerceStore {
     enum ProductStatus {Open, Sold, Unsold}
-    enum ProductCondition {New, Used}
+    enum ProductCondition {New, Used} // 全新或二手产品
 
-    uint public productIndex;
+    uint public productIndex; // 最新的产品编号。一开始没有产品，所以编号为0
 
-    mapping (uint => address) productEscrow;
+    mapping (uint => address) productEscrow; // 产品编号与托管合同的地址的对应关系
 
     /*
        We keep track of who inserted the product through the mapping. The key is the merchant's account address
@@ -20,37 +20,37 @@ contract EcommerceStore {
            stores[msg.sender][productIndex] = product;
 
     */
-    mapping(address => mapping(uint => Product)) stores;
+    mapping(address => mapping(uint => Product)) stores;  // 店铺。每个以太坊地址address都对应一家店铺，每家店铺都拥有许多产品Product
 
     /*
       mapping used to keep track of which products are in which merchant's store.
       productIdInStore[productIndex] = msg.sender;
     */
-    mapping(uint => address) productIdInStore;
+    mapping(uint => address) productIdInStore;  // 产品编号与所在店铺的地址的对应关系
 
-
+    // 出价
     struct Bid {
-        address bidder;
-        uint productId;
-        uint value;
-        bool revealed;
+        address bidder; // 出价人
+        uint productId; // 产品id
+        uint value; // 附带金额（不是实际出价金额）
+        bool revealed; // 此出价是否已经公告
     }
 
     struct Product {
-        uint id;
-        string name;
-        string category;
-        string imageLink;
-        string descLink;
-        uint auctionStartTime;
-        uint auctionEndTime;
-        uint startPrice;
-        address highestBidder;
-        uint highestBid;
-        uint secondHighestBid;
-        uint totalBids;
-        ProductStatus status;
-        ProductCondition condition;
+        uint id; //产品id
+        string name; //产品名字
+        string category; //分类
+        string imageLink; //图片hash
+        string descLink; //图片描述信息的hash
+        uint auctionStartTime; //开始竞标的时间
+        uint auctionEndTime; // 竞标结束时间
+        uint startPrice; // 起拍价格
+        address highestBidder; // 赢家的钱包地址
+        uint highestBid; // 赢家竞标的价格
+        uint secondHighestBid; // 第二高的这个人的地址
+        uint totalBids; // 一共有多少人参与竞标
+        ProductStatus status; //状态
+        ProductCondition condition; // 新、旧
 
         /*
         To easily lookup which user bid and what they bid, let's add a mapping to the
@@ -58,9 +58,10 @@ contract EcommerceStore {
         the address of the bidder and value is the mapping of the hashed bid string to
         the bid struct.
         */
-        mapping (address => mapping (bytes32 => Bid)) bids;
+        mapping (address => mapping (bytes32 => Bid)) bids; // 该产品的出价。address对应每个出价的以太坊账户地址，每个账户可以出多笔价，关键字是实际投标金额和密钥加密后的hash值
     }
 
+    // 构造函数
     function EcommerceStore() public {
         productIndex = 0;
     }
@@ -68,6 +69,7 @@ contract EcommerceStore {
     // https://www.zastrin.com/courses/3/lessons/8-6
     event NewProduct(uint _productId, string _name, string _category, string _imageLink, string _descLink, uint _auctionStartTime, uint _auctionEndTime, uint _startPrice, uint _productCondition);
 
+    /*  添加产品到区块链*/
     function addProductToStore(string _name, string _category, string _imageLink, string _descLink, uint _auctionStartTime,
         uint _auctionEndTime, uint _startPrice, uint _productCondition) public {
         require (_auctionStartTime < _auctionEndTime);
@@ -76,9 +78,11 @@ contract EcommerceStore {
             _startPrice, 0, 0, 0, 0, ProductStatus.Open, ProductCondition(_productCondition));
         stores[msg.sender][productIndex] = product;
         productIdInStore[productIndex] = msg.sender;
+        // 触发事件
         NewProduct(productIndex, _name, _category, _imageLink, _descLink, _auctionStartTime, _auctionEndTime, _startPrice, _productCondition);
     }
 
+    /* 通过产品ID读取产品信息 */
     function getProduct(uint _productId) view public returns (uint, string, string, string, string, uint, uint, uint, ProductStatus, ProductCondition) {
         /*
           https://solidity.readthedocs.io/en/latest/frequently-asked-questions.html#what-is-the-memory-keyword-what-does-it-do
@@ -90,13 +94,16 @@ contract EcommerceStore {
         product.auctionEndTime, product.startPrice, product.status, product.condition);
     }
 
+    // 出价。其中
+    // 1) _bid是􏰜􏸌􏶺􏶘􏴍􏷏􏲍􏱁􏱂􏶦􏸓􏱜􏶦􏰜􏸌􏶺􏶘􏴍􏷏􏲍􏱁􏱂􏶦􏸓􏱜􏶦实际投标金额和密钥加密后的hash值
+    // 2) msg.value是附带的金额
     function bid(uint _productId, bytes32 _bid) payable public returns (bool) {
-        Product storage product = stores[productIdInStore[_productId]][_productId];
-        require (now >= product.auctionStartTime);
+        Product storage product = stores[productIdInStore[_productId]][_productId]; // 根据产品id找到该产品在stores中的对象
+        require (now >= product.auctionStartTime); // 注意now是关键字，表示当前时间
         require (now <= product.auctionEndTime);
         require (msg.value > product.startPrice);
         require (product.bids[msg.sender][_bid].bidder == 0);
-        product.bids[msg.sender][_bid] = Bid(msg.sender, _productId, msg.value, false);
+        product.bids[msg.sender][_bid] = Bid(msg.sender, _productId, msg.value, false); // 新建一个bid对象。键是_bid，值是新建的Bid对象
         product.totalBids += 1;
         return true;
     }
@@ -112,6 +119,7 @@ contract EcommerceStore {
         return result;
     }
 
+    // 公告。
     function revealBid(uint _productId, string _amount, string _secret) public {
         Product storage product = stores[productIdInStore[_productId]][_productId];
         require (now > product.auctionEndTime);
@@ -121,7 +129,7 @@ contract EcommerceStore {
         require (bidInfo.bidder > 0);
         require (bidInfo.revealed == false);
 
-        uint refund;
+        uint refund; // 退款
 
         uint amount = stringToUint(_amount);
 
@@ -166,13 +174,14 @@ contract EcommerceStore {
         return product.totalBids;
     }
 
+    // 结束拍卖，并签订托管合同。本交易的发起者作为仲裁者
     function finalizeAuction(uint _productId) public {
         Product memory product = stores[productIdInStore[_productId]][_productId];
         // 48 hours to reveal the bid
         require(now > product.auctionEndTime);
         require(product.status == ProductStatus.Open);
-        require(product.highestBidder != msg.sender);
-        require(productIdInStore[_productId] != msg.sender);
+        require(product.highestBidder != msg.sender); // 不能是买家
+        require(productIdInStore[_productId] != msg.sender); // 也不能是卖家
 
         if (product.totalBids == 0) {
             product.status = ProductStatus.Unsold;
@@ -189,18 +198,22 @@ contract EcommerceStore {
         }
     }
 
+    // 查询某个产品的托管合同地址
     function escrowAddressForProduct(uint _productId) view public returns (address) {
         return productEscrow[_productId];
     }
 
+    // 查询某个产品的托管合同详情
     function escrowInfo(uint _productId) view public returns (address, address, address, bool, uint, uint) {
         return Escrow(productEscrow[_productId]).escrowInfo();
     }
 
+    // 释放钱款给卖家
     function releaseAmountToSeller(uint _productId) public {
         Escrow(productEscrow[_productId]).releaseAmountToSeller(msg.sender);
     }
 
+    // 退款
     function refundAmountToBuyer(uint _productId) public {
         Escrow(productEscrow[_productId]).refundAmountToBuyer(msg.sender);
     }
