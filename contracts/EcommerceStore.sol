@@ -21,6 +21,7 @@ contract EcommerceStore {
 
     */
     mapping(address => mapping(uint => Product)) stores;  // 店铺。每个以太坊地址address都对应一家店铺，每家店铺都拥有许多产品Product
+    // 【注意】这里每家店铺的商品也使用字典mapping(uint => Product)的原因是，方便使用id迅速找到相应商品。因为一家店铺里的商品id并不是依次递增的，所以无法使用数组下标来查找。
 
     /*
       mapping used to keep track of which products are in which merchant's store.

@@ -8,7 +8,7 @@ var contract = require('truffle-contract')
 var Web3 = require('web3')
 var provider = new Web3.providers.HttpProvider("http://localhost:8545");
 var EcommerceStore = contract(ecommerce_store_artifacts);
-EcommerceStore.setProvider(provider); // 设置本合约的创建者
+EcommerceStore.setProvider(provider); // 设置以太坊网络的api
 /*
  - start gananche-cli
  - truffle migrate
@@ -50,25 +50,6 @@ app.listen(3000, function() {
   console.log('Ebay Ethereum server listening on port 3000!');
 });
 
-// 监听新产品事件的函数
-function setupProductEventListner() {
-  let productEvent;
-  EcommerceStore.deployed().then(function(i) {
-    productEvent = i.NewProduct({fromBlock: 0, toBlock: 'latest'});
-
-    productEvent.watch(function(err, result) {
-      if (err) {
-        console.log(err)
-        return;
-      }
-      saveProduct(result.args);
-    });
-  })
-}
-
-// 执行监听新产品事件的函数
-setupProductEventListner(); 
-
 function saveProduct(product) {
   ProductModel.findOne({ 'blockchainId': product._productId.toLocaleString() }, function (err, dbProduct) {
 
@@ -92,6 +73,26 @@ function saveProduct(product) {
   })
 }
 
+// 监听新产品事件的函数
+function setupProductEventListner() {
+  let productEvent;
+  EcommerceStore.deployed().then(function(i) {
+    productEvent = i.NewProduct({fromBlock: 0, toBlock: 'latest'});
+
+    productEvent.watch(function(err, result) {
+      if (err) {
+        console.log(err)
+        return;
+      }
+      saveProduct(result.args);
+    });
+  })
+}
+
+// 执行监听新产品事件的函数
+setupProductEventListner();
+
+// 只提供这一个get请求的api。
 app.get('/products', function(req, res) {
   current_time = Math.round(new Date() / 1000);
   query = { productStatus: {$eq: 0} }
